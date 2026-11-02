@@ -66,7 +66,7 @@ export default class TestDriver extends Extension {
             {label: 'server', reachable: true, time: '12:00:00'},
             {label: 'backup', reachable: false, time: '12:00:00'},
         ]);
-        assert(app._icon.gicon.to_string().includes('connected-symbolic'), 'connected icon is distinct');
+        assert(app._icon.gicon.to_string().includes('zerotier-connected-symbolic'), 'connected icon is distinct');
         button.menu.open();
         await sleep(600);
         const [x, y] = button.menu.actor.get_transformed_position();
