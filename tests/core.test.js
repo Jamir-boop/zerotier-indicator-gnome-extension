@@ -1,4 +1,4 @@
-import {isConnected, parsePeer, zeroTierInterfaces} from '../core.js';
+import {isConnected, parsePeer, peerInterval, sameState, zeroTierInterfaces} from '../core.js';
 
 let count = 0;
 function assert(value) {
@@ -34,4 +34,16 @@ assert(!isConnected(data.slice(1)));
 assert(!isConnected([]));
 assert(!isConnected(zeroTierInterfaces([{ifname: 'ztEmpty'}])));
 assert(data[0].addresses[0] === '192.0.2.1/24');
+assert(peerInterval(0) === 0);
+assert(peerInterval(1) === 60);
+assert(peerInterval(59) === 60);
+assert(peerInterval(60) === 60);
+assert(peerInterval(300) === 300);
+assert(sameState({status: 'Connected', interfaces: data, peers: null},
+    {status: 'Connected', interfaces: data, peers: null}));
+assert(!sameState({peers: null}, {peers: []}));
+assert(!sameState({status: 'Connected'}, {status: 'Disconnected'}));
+assert(!sameState({peers: [{reachable: true, time: '1'}]},
+    {peers: [{reachable: true, time: '2'}]}));
+assert(!sameState({interfaces: data}, {interfaces: []}));
 print(`PASS ${count} core assertions`);

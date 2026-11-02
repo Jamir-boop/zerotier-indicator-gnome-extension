@@ -36,7 +36,31 @@ export default class TestDriver extends Extension {
         const app = extension.stateObj;
         const button = Main.panel.statusArea[UUID];
         assert(Boolean(button), 'panel indicator exists');
-        assert(app.getSettings().get_strv('peers').length === 0, 'public peers default is empty');
+        const settings = app.getSettings();
+        assert(settings.get_strv('peers').length === 0, 'public peers default is empty');
+        assert(settings.get_uint('peer-interval') === 300, 'peer interval default is 300 s');
+        assert(['Connected', 'Disconnected'].includes(app._state.status), 'async interface check completes');
+        assert(app._rows._getMenuItems().length === 0, 'closed menu builds no rows');
+        // Count each check. Demo data keeps owner addresses out of the test and the image.
+        const counts = {ip: 0, tcp: 0};
+        const reset = () => Object.assign(counts, {ip: 0, tcp: 0});
+        let connected = true;
+        let delay = 0;
+        let lastCancel = null;
+        const realPeer = app._peer.bind(app);
+        const realInterfaces = app._interfaces.bind(app);
+        app._interfaces = async cancel => {
+            counts.ip++;
+            lastCancel = cancel;
+            await realInterfaces(cancel);
+            if (delay)
+                await sleep(delay);
+            return connected ? [{name: 'ztDemo', up: true, addresses: ['192.0.2.1/24']}] : [];
+        };
+        app._peer = (...args) => {
+            counts.tcp++;
+            return realPeer(...args);
+        };
         // Use a real local listener for both reachable and refused TCP checks.
         const service = new Gio.SocketService();
         const port = service.add_any_inet_port(null);
@@ -45,30 +69,37 @@ export default class TestDriver extends Extension {
             return true;
         });
         service.start();
-        const results = await Promise.all([
-            app._peer({label: 'local', host: '127.0.0.1', port}, new Gio.Cancellable()),
-            app._peer({label: 'closed', host: '127.0.0.1', port: 1}, new Gio.Cancellable()),
-        ]);
-        assert(results[0].reachable, 'open TCP port is reachable');
-        assert(!results[1].reachable, 'closed TCP port is unreachable');
-        service.stop();
-        service.close();
+        settings.set_strv('peers', [`server=127.0.0.1:${port}`, 'backup=127.0.0.1:1']);
+        await sleep(1500);
+        assert(counts.tcp === 0, 'peer setting change makes no TCP while the menu is closed');
+        const idle = Number(GLib.getenv('ZT_TEST_IDLE_SECONDS') || 20);
+        reset();
+        await sleep(idle * 1000);
+        print(`MEASURE idle ${idle}s, menu closed: ${counts.ip} ip subprocesses, ${counts.tcp} TCP connects`);
+        assert(counts.tcp === 0, 'idle menu makes no TCP before the peer interval');
+        assert(counts.ip <= Math.ceil(idle / 60), 'idle interface checks follow the 60 s safety interval');
+        if (idle < 60)
+            assert(counts.ip === 0, 'idle between events: no subprocess');
+        const monitor = Gio.NetworkMonitor.get_default();
+        reset();
+        for (let i = 0; i < 3; i++)
+            monitor.emit('network-changed', true);
+        await sleep(1600);
+        assert(counts.ip === 1 && counts.tcp === 0, 'network-changed burst gives one interface check and no TCP');
         const labels = () => app._rows._getMenuItems().map(row => row.label.text);
-        assert(['ZeroTier: Connected', 'ZeroTier: Disconnected'].includes(labels()[0]),
-            'async interface check completes');
-        assert(button.menu._getMenuItems()[2].label.text === 'Check now', 'Check now action exists');
-        button.menu._getMenuItems()[2].activate(null);
-        await sleep(1000);
-        // Only the private shell gets demo data. No owner addresses enter the image.
-        app._render('Disconnected', [], []);
-        assert(app._icon.gicon.to_string().includes('disconnected'), 'disconnected icon is distinct');
-        app._render('Connected', [{name: 'ztDemo', up: true, addresses: ['192.0.2.1/24']}], [
-            {label: 'server', reachable: true, time: '12:00:00'},
-            {label: 'backup', reachable: false, time: '12:00:00'},
-        ]);
-        assert(app._icon.gicon.to_string().includes('zerotier-connected-symbolic'), 'connected icon is distinct');
         button.menu.open();
-        await sleep(600);
+        await sleep(2500);
+        assert(counts.tcp === 2, 'menu open checks each peer once');
+        assert(labels()[0] === 'ZeroTier: Connected' && labels()[1] === 'ztDemo: 192.0.2.1/24' &&
+            labels()[3].startsWith('● server: Reachable') && labels()[4].startsWith('○ backup: Unreachable'),
+        'menu rows show interface and peer results');
+        assert(app._icon.gicon.to_string().includes('zerotier-connected-symbolic'), 'connected icon is distinct');
+        assert(button.menu._getMenuItems()[1].visible, 'separator remains visible on first menu open');
+        const firstRow = app._rows._getMenuItems()[0];
+        const icon = app._icon.gicon;
+        app._show(JSON.parse(JSON.stringify(app._state)));
+        assert(app._rows._getMenuItems()[0] === firstRow && app._icon.gicon === icon,
+            'same results keep menu rows and icon');
         const [x, y] = button.menu.actor.get_transformed_position();
         const [width, height] = button.menu.actor.get_transformed_size();
         const screenshot = new Shell.Screenshot();
@@ -78,6 +109,38 @@ export default class TestDriver extends Extension {
         stream.close(null);
         button.menu.close();
         assert(GLib.file_test(path, GLib.FileTest.EXISTS), 'private menu screenshot saved');
+        assert(button.menu._getMenuItems()[2].label.text === 'Check now', 'Check now action exists');
+        reset();
+        button.menu._getMenuItems()[2].activate(null);
+        await sleep(2500);
+        assert(counts.ip === 1 && counts.tcp === 2, 'Check now checks interfaces and peers');
+        settings.set_uint('peer-interval', 0);
+        await sleep(300);
+        assert(!app._peerTimer, 'zero interval removes the background peer timer');
+        settings.set_uint('peer-interval', 60);
+        await sleep(300);
+        assert(Boolean(app._peerTimer), 'slow background peer timer is optional');
+        settings.set_uint('peer-interval', 0);
+        await sleep(300);
+        reset();
+        delay = 200;
+        app._check(false);
+        app._check(true);
+        await sleep(1200);
+        assert(counts.ip === 2 && counts.tcp === 2, 'peer request during an interface check is not lost');
+        delay = 0;
+        connected = false;
+        monitor.emit('network-changed', true);
+        await sleep(1600);
+        assert(app._icon.gicon.to_string().includes('disconnected'), 'disconnected icon is distinct');
+        reset();
+        button.menu.open();
+        await sleep(1500);
+        assert(counts.tcp === 0 && labels()[0] === 'ZeroTier: Disconnected' &&
+            labels().includes('server: Not checked'), 'no zt connection: peers are not checked');
+        button.menu.close();
+        service.stop();
+        service.close();
         button.menu._getMenuItems()[3].activate(null);
         let prefs = null;
         for (let i = 0; i < 100 && !prefs; i++) {
@@ -89,10 +152,22 @@ export default class TestDriver extends Extension {
         assert(Boolean(prefs), 'Settings opens preferences');
         prefs.delete(global.get_current_time());
         await sleep(500);
+        // Disable while a check is in flight.
+        connected = true;
+        delay = 500;
+        reset();
+        button.menu.open();
+        await sleep(100);
         Main.extensionManager.disableExtension(UUID);
         await sleep(400);
         assert(!Main.panel.statusArea[UUID], 'disable removes indicator');
-        assert(!app._timer && !app._cancel && !app._process, 'disable clears timer and checks');
+        assert(lastCancel.is_cancelled(), 'disable cancels the in-flight check');
+        assert(!app._poll && !app._peerTimer && !app._debounce && !app._cancel && !app._process &&
+            !app._networkId, 'disable clears sources, signals and checks');
+        monitor.emit('network-changed', true);
+        await sleep(1600);
+        assert(counts.ip === 1 && counts.tcp === 0, 'no checks or callbacks after disable');
+        delay = 0;
         Main.extensionManager.enableExtension(UUID);
         await sleep(1200);
         Main.extensionManager.disableExtension(UUID);

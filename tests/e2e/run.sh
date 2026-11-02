@@ -54,7 +54,7 @@ gsettings set org.gnome.shell enabled-extensions "['$DRIVER']"
 gsettings set org.gnome.shell welcome-dialog-last-shown-version '999'
 
 status=0
-timeout 60 dbus-run-session -- gnome-shell --headless --wayland --no-x11 \
+timeout 240 dbus-run-session -- gnome-shell --headless --wayland --no-x11 \
     --wayland-display="$WAYLAND_DISPLAY" --virtual-monitor 1024x768 >"$WORK/shell.log" 2>&1 || status=$?
 
 if grep -E "JS ERROR|JS WARNING|Gjs-CRITICAL" "$WORK/shell.log" | grep -iE "zerotier" >"$WORK/js-errors.txt"; then

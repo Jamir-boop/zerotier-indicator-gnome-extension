@@ -20,3 +20,11 @@ export function zeroTierInterfaces(data) {
 export function isConnected(interfaces) {
     return interfaces.some(item => item.up && item.addresses.length > 0);
 }
+
+export function peerInterval(seconds) {
+    return seconds === 0 ? 0 : Math.max(60, seconds);
+}
+
+export function sameState(left, right) {
+    return JSON.stringify(left) === JSON.stringify(right);
+}

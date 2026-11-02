@@ -12,13 +12,15 @@ export default class ZeroTierPreferences extends ExtensionPreferences {
         const group = new Adw.PreferencesGroup({title: 'Checks'});
         page.add(group);
         window.add(page);
-        for (const [key, title, upper] of [
-            ['poll-interval', 'Poll interval (seconds)', 3600],
-            ['check-port', 'Default TCP port', 65535],
+        for (const [key, title, subtitle, lower, upper] of [
+            ['peer-interval', 'Peer check interval (seconds)',
+                '0 checks peers only when the menu opens. Values from 1 to 59 use 60.', 0, 3600],
+            ['check-port', 'Default TCP port', '', 1, 65535],
         ]) {
             const row = new Adw.SpinRow({
                 title,
-                adjustment: new Gtk.Adjustment({lower: 1, upper, step_increment: 1, page_increment: 10}),
+                subtitle,
+                adjustment: new Gtk.Adjustment({lower, upper, step_increment: 1, page_increment: 10}),
             });
             settings.bind(key, row, 'value', Gio.SettingsBindFlags.DEFAULT);
             group.add(row);
