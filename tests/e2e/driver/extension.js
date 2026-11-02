@@ -54,15 +54,19 @@ export default class TestDriver extends Extension {
         service.stop();
         service.close();
         const labels = () => app._rows._getMenuItems().map(row => row.label.text);
-        assert(labels().some(text => text.startsWith('zt')), 'async interface check shows ZeroTier');
+        assert(['ZeroTier: Connected', 'ZeroTier: Disconnected'].includes(labels()[0]),
+            'async interface check completes');
         assert(button.menu._getMenuItems()[2].label.text === 'Check now', 'Check now action exists');
         button.menu._getMenuItems()[2].activate(null);
         await sleep(1000);
         // Only the private shell gets demo data. No owner addresses enter the image.
+        app._render('Disconnected', [], []);
+        assert(app._icon.gicon.to_string().includes('disconnected'), 'disconnected icon is distinct');
         app._render('Connected', [{name: 'ztDemo', up: true, addresses: ['192.0.2.1/24']}], [
             {label: 'server', reachable: true, time: '12:00:00'},
             {label: 'backup', reachable: false, time: '12:00:00'},
         ]);
+        assert(app._icon.gicon.to_string().includes('connected-symbolic'), 'connected icon is distinct');
         button.menu.open();
         await sleep(600);
         const [x, y] = button.menu.actor.get_transformed_position();
