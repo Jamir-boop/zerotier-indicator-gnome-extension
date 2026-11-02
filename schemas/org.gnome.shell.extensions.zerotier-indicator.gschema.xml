@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.zerotier-indicator" path="/org/gnome/shell/extensions/zerotier-indicator/">
+    <key name="poll-interval" type="u">
+      <default>10</default><range min="1" max="3600"/>
+      <summary>Poll interval in seconds</summary>
+    </key>
+    <key name="peers" type="as">
+      <default>[]</default>
+      <summary>Peers as label=host or label=host:port</summary>
+    </key>
+    <key name="check-port" type="u">
+      <default>22</default><range min="1" max="65535"/>
+      <summary>Default TCP port for peer checks</summary>
+    </key>
+  </schema>
+</schemalist>

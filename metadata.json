@@ -1,0 +1,9 @@
+{
+  "uuid": "zerotier-indicator@jamir-boop.github.io",
+  "name": "ZeroTier Indicator",
+  "description": "Show ZeroTier interface status and TCP peer checks in the top bar.",
+  "version-name": "0.1.0",
+  "shell-version": ["46", "47", "48"],
+  "settings-schema": "org.gnome.shell.extensions.zerotier-indicator",
+  "url": "https://github.com/Jamir-boop/zerotier-indicator-gnome-extension"
+}

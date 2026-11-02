@@ -1,0 +1,8 @@
+{
+  "root": true,
+  "parserOptions": {"ecmaVersion": 2018, "sourceType": "module"},
+  "env": {"es6": true},
+  "globals": {"global": "readonly", "print": "readonly", "logError": "readonly"},
+  "extends": "eslint:recommended",
+  "rules": {"no-unused-vars": ["error", {"args": "none", "caughtErrors": "none"}]}
+}
